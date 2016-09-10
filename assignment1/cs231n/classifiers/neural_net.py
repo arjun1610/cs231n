@@ -69,12 +69,17 @@ class TwoLayerNet(object):
 
     # Compute the forward pass
     scores = None
+    layer1_score = X.dot(W1) + b1.T
+    layer1_relu = np.maximum(0, layer1_score)
+    layer2_score = layer1_relu.dot(W2) + b2.T
+    scores = layer2_score 
+    # print scores.shape
     #############################################################################
     # TODO: Perform the forward pass, computing the class scores for the input. #
     # Store the result in the scores variable, which should be an array of      #
     # shape (N, C).                                                             #
     #############################################################################
-    pass
+    
     #############################################################################
     #                              END OF YOUR CODE                             #
     #############################################################################
@@ -85,26 +90,65 @@ class TwoLayerNet(object):
 
     # Compute the loss
     loss = None
+    num_train = X.shape[0]
     #############################################################################
     # TODO: Finish the forward pass, and compute the loss. This should include  #
     # both the data loss and L2 regularization for W1 and W2. Store the result  #
-    # in the variable loss, which should be a scalar. Use the Softmax           #
+    # in the variable loss, which should be a scalar Use the Softmax           #
     # classifier loss. So that your results match ours, multiply the            #
     # regularization loss by 0.5                                                #
     #############################################################################
-    pass
+    scores -= np.amax(scores, axis = 1, keepdims = True)
+    scores = np.exp(scores)
+    prob1 = scores/ np.sum(scores, axis = 1, keepdims = True)
+    loss = np.sum(-np.log(prob1[np.arange(X.shape[0]),y]))
+    loss /= X.shape[0]
+    loss += 0.5 * reg * (np.sum(W1* W1) + np.sum(W2*W2))
+      
     #############################################################################
     #                              END OF YOUR CODE                             #
     #############################################################################
 
     # Backward pass: compute gradients
     grads = {}
+
     #############################################################################
     # TODO: Compute the backward pass, computing the derivatives of the weights #
     # and biases. Store the results in the grads dictionary. For example,       #
     # grads['W1'] should store the gradient on W1, and be a matrix of same size #
     #############################################################################
-    pass
+    dlayer2_score = prob1 
+    dlayer2_score[np.arange(num_train),y] -= 1 
+    dW2 = layer1_relu.T.dot(dlayer2_score)
+    dW2 /= num_train
+    dW2 += reg*W2
+    grads['W2'] = dW2
+    	
+    db2 = np.ones([1, num_train]).dot(dlayer2_score) # summation along columns to get the dimensions 1*C  
+    db2 /= num_train
+    grads['b2'] = db2.ravel()
+   
+    # compute dW1 and db1
+    # layer2_score = layer1_relu.dot(W2) so, dL/dlayer1_relu = dL/dLayer2_score * dLayer2_Score/dRelu 
+    # dLayer2_score/dRelu = W2
+    # dLayer2_score is computed above
+    # layer1_relu = np.maximum(0, layer1_score) 
+    # dL/dLayer1_score = dL/dlayer1_relu * dlayer1_relu/ dlayer1_score
+    # set the negative elements in drelu as 0 for gradient
+    # layer1_score = X.W1
+    # dL/dW1 = dL/dlayer1_score * dlayer1_score/ dW1 
+    # dlayer1_score / dW1 = X
+    # Here dlayer1_score will be dRelu
+    dRelu = dlayer2_score.dot(W2.T) #N*C H1*C
+    dRelu[layer1_score<=0] =  0
+    dW1 = X.T.dot(dRelu) 
+    dW1 /= num_train
+    dW1 += reg*W1 
+    grads['W1'] = dW1
+    db1 = np.ones([1, num_train]).dot(dRelu) # summation along columns to get the dimensions as 1*H1 
+    db1 /= num_train
+    grads['b1'] = db1.ravel()
+    
     #############################################################################
     #                              END OF YOUR CODE                             #
     #############################################################################
@@ -148,7 +192,9 @@ class TwoLayerNet(object):
       # TODO: Create a random minibatch of training data and labels, storing  #
       # them in X_batch and y_batch respectively.                             #
       #########################################################################
-      pass
+      rand_ind = np.random.choice(num_train, batch_size)
+      X_batch = X[rand_ind, :]
+      y_batch = y[rand_ind]
       #########################################################################
       #                             END OF YOUR CODE                          #
       #########################################################################
@@ -163,7 +209,10 @@ class TwoLayerNet(object):
       # using stochastic gradient descent. You'll need to use the gradients   #
       # stored in the grads dictionary defined above.                         #
       #########################################################################
-      pass
+      self.params['W1'] -= learning_rate * grads['W1']
+      self.params['b1'] -= learning_rate * grads['b1']
+      self.params['W2'] -= learning_rate * grads['W2']
+      self.params['b2'] -= learning_rate * grads['b2']
       #########################################################################
       #                             END OF YOUR CODE                          #
       #########################################################################
@@ -208,7 +257,8 @@ class TwoLayerNet(object):
     ###########################################################################
     # TODO: Implement this function; it should be VERY simple!                #
     ###########################################################################
-    pass
+    scores = self.loss(X)
+    y_pred = np.argmax(scores, axis=1) 
     ###########################################################################
     #                              END OF YOUR CODE                           #
     ###########################################################################
